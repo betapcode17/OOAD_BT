@@ -1,10 +1,17 @@
 package com.calendar.view;
 
-import com.calendar.controller.AddAppointmentController;
-import com.calendar.model.bean.Appointment;
-import com.calendar.model.bo.AppointmentBO;
-import com.calendar.view.component.AppointmentCardRenderer;
-import com.calendar.view.component.MiniCalendar;
+import java.awt.BorderLayout;
+import java.awt.Color;
+import java.awt.Cursor;
+import java.awt.Dimension;
+import java.awt.Font;
+import java.awt.event.MouseAdapter;
+import java.awt.event.MouseEvent;
+import java.sql.SQLException;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.LocalTime;
+import java.util.List;
 
 import javax.swing.BorderFactory;
 import javax.swing.DefaultListModel;
@@ -15,17 +22,12 @@ import javax.swing.JList;
 import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.JScrollPane;
-import java.awt.BorderLayout;
-import java.awt.Color;
-import java.awt.Cursor;
-import java.awt.Dimension;
-import java.awt.Font;
-import java.awt.event.MouseAdapter;
-import java.awt.event.MouseEvent;
-import java.sql.SQLException;
-import java.util.List;
 
-import javax.swing.JCheckBox;
+import com.calendar.controller.AddAppointmentController;
+import com.calendar.model.bean.Appointment;
+import com.calendar.model.bo.AppointmentBO;
+import com.calendar.view.component.AppointmentCardRenderer;
+import com.calendar.view.component.MiniCalendar;
 
 public class MainUI extends JFrame {
     private final AppointmentBO appointmentBO;
@@ -40,6 +42,9 @@ public class MainUI extends JFrame {
         this.appointmentListModel = new DefaultListModel<>();
         this.appointmentList = new JList<>(appointmentListModel);
         this.miniCalendar = new MiniCalendar();
+
+        // Listen for date clicks on mini calendar
+        miniCalendar.setDateClickListener(date -> openAddAppointmentDialogForDate(date));
 
         initializeUI();
         loadAppointments();
@@ -221,6 +226,16 @@ public class MainUI extends JFrame {
 
     private void openAddAppointmentDialog() {
         AddAppointmentUI addAppointmentUI = new AddAppointmentUI(this, addAppointmentController);
+        addAppointmentUI.setVisible(true);
+    }
+
+    private void openAddAppointmentDialogForDate(LocalDate date) {
+        AddAppointmentUI addAppointmentUI = new AddAppointmentUI(this, addAppointmentController);
+        // Set the selected date as the start time (with 9:00 AM)
+        LocalDateTime startDateTime = LocalDateTime.of(date, LocalTime.of(9, 0));
+        addAppointmentUI.setStartDateTime(startDateTime);
+        // Lock date field to prevent changing the date; only time can be edited
+        addAppointmentUI.lockDateField();
         addAppointmentUI.setVisible(true);
     }
 

@@ -1,8 +1,16 @@
 package com.calendar.view;
 
-import com.calendar.controller.AddAppointmentController;
-import com.calendar.model.dto.AppointmentDTO;
-import com.calendar.view.component.DateTimePickerField;
+import java.awt.BorderLayout;
+import java.awt.Color;
+import java.awt.Cursor;
+import java.awt.Dimension;
+import java.awt.Font;
+import java.awt.GridBagConstraints;
+import java.awt.GridBagLayout;
+import java.awt.Insets;
+import java.awt.event.MouseAdapter;
+import java.awt.event.MouseEvent;
+import java.time.LocalDateTime;
 
 import javax.swing.BorderFactory;
 import javax.swing.JButton;
@@ -17,19 +25,12 @@ import javax.swing.SpinnerNumberModel;
 import javax.swing.SwingUtilities;
 import javax.swing.border.EmptyBorder;
 import javax.swing.border.LineBorder;
-import java.awt.BorderLayout;
-import java.awt.Color;
-import java.awt.Cursor;
-import java.awt.Dimension;
-import java.awt.Font;
-import java.awt.GridBagConstraints;
-import java.awt.GridBagLayout;
-import java.awt.Insets;
-import java.awt.event.MouseAdapter;
 import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
-import java.awt.event.MouseEvent;
-import java.time.LocalDateTime;
+
+import com.calendar.controller.AddAppointmentController;
+import com.calendar.model.dto.AppointmentDTO;
+import com.calendar.view.component.DateTimePickerField;
 
 public class AddAppointmentUI extends JDialog {
     private final AddAppointmentController controller;
@@ -306,6 +307,16 @@ public class AddAppointmentUI extends JDialog {
         dto.setReminderMinutes(String.valueOf(reminderSpinner.getValue()));
         dto.setParticipantIds(participantIdsField.getText());
         return dto;
+    }
+
+    public void setStartDateTime(LocalDateTime dateTime) {
+        startTimeField.setDateTime(dateTime);
+        endTimeField.setDateTime(dateTime.plusMinutes(30));
+    }
+
+    public void lockDateField() {
+        startTimeField.disableDatePicker();
+        endTimeField.disableDatePicker();
     }
 
     public void clearForm() {

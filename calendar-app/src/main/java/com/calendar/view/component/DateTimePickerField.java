@@ -1,13 +1,5 @@
 package com.calendar.view.component;
 
-import javax.swing.BorderFactory;
-import javax.swing.JButton;
-import javax.swing.JDialog;
-import javax.swing.JLabel;
-import javax.swing.JPanel;
-import javax.swing.JSpinner;
-import javax.swing.SpinnerNumberModel;
-import javax.swing.border.LineBorder;
 import java.awt.BorderLayout;
 import java.awt.Color;
 import java.awt.Dimension;
@@ -17,10 +9,21 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.Calendar;
 
+import javax.swing.BorderFactory;
+import javax.swing.JButton;
+import javax.swing.JDialog;
+import javax.swing.JLabel;
+import javax.swing.JPanel;
+import javax.swing.JSpinner;
+import javax.swing.SpinnerNumberModel;
+import javax.swing.border.LineBorder;
+
 public class DateTimePickerField extends JPanel {
     private final JLabel displayLabel;
     private LocalDateTime selectedDateTime;
     private final DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
+    private final JButton pickerButton;
+    private boolean datePickerLocked = false;
 
     public DateTimePickerField(LocalDateTime initialDateTime) {
         this.selectedDateTime = initialDateTime;
@@ -36,7 +39,7 @@ public class DateTimePickerField extends JPanel {
         updateDisplay();
 
         // Picker button
-        JButton pickerButton = new JButton("📅");
+        this.pickerButton = new JButton("📅");
         pickerButton.setFont(new Font("SansSerif", Font.BOLD, 16));
         pickerButton.setPreferredSize(new Dimension(40, 40));
         pickerButton.setFocusPainted(false);
@@ -107,29 +110,37 @@ public class DateTimePickerField extends JPanel {
             }
 
             final int currentDay = day;
-            dayButton.addActionListener(e -> {
-                selectedDateTime = LocalDateTime.of(year, month + 1, currentDay, selectedDateTime.getHour(), selectedDateTime.getMinute());
-                // Update highlights for all day buttons
-                for (java.awt.Component comp : calendarPanel.getComponents()) {
-                    if (comp instanceof javax.swing.JButton b) {
-                        try {
-                            int d = Integer.parseInt(b.getText());
-                            if (d == currentDay) {
-                                b.setBackground(new Color(52, 152, 219));
-                                b.setForeground(Color.WHITE);
-                                b.setOpaque(true);
-                            } else {
-                                b.setBackground(Color.WHITE);
-                                b.setForeground(new Color(40, 50, 60));
-                                b.setOpaque(true);
+            
+            // If date picker is locked, disable day selection but allow time editing
+            if (datePickerLocked) {
+                dayButton.setEnabled(false);
+                dayButton.setBackground(new Color(240, 240, 240));
+                dayButton.setForeground(new Color(180, 180, 180));
+            } else {
+                dayButton.addActionListener(e -> {
+                    selectedDateTime = LocalDateTime.of(year, month + 1, currentDay, selectedDateTime.getHour(), selectedDateTime.getMinute());
+                    // Update highlights for all day buttons
+                    for (java.awt.Component comp : calendarPanel.getComponents()) {
+                        if (comp instanceof javax.swing.JButton b) {
+                            try {
+                                int d = Integer.parseInt(b.getText());
+                                if (d == currentDay) {
+                                    b.setBackground(new Color(52, 152, 219));
+                                    b.setForeground(Color.WHITE);
+                                    b.setOpaque(true);
+                                } else {
+                                    b.setBackground(Color.WHITE);
+                                    b.setForeground(new Color(40, 50, 60));
+                                    b.setOpaque(true);
+                                }
+                            } catch (NumberFormatException ex) {
+                                // not a day button (header/empty), ignore
                             }
-                        } catch (NumberFormatException ex) {
-                            // not a day button (header/empty), ignore
                         }
                     }
-                }
-                updateDisplay();
-            });
+                    updateDisplay();
+                });
+            }
 
             calendarPanel.add(dayButton);
         }
@@ -228,5 +239,11 @@ public class DateTimePickerField extends JPanel {
         } else {
             setBorder(new LineBorder(new Color(220, 225, 235), 1, false));
         }
+    }
+
+    public void disableDatePicker() {
+        this.datePickerLocked = true;
+        pickerButton.setBackground(new Color(180, 180, 180));
+        pickerButton.setToolTipText("Date is locked. Click to edit time only.");
     }
 }
