@@ -1,0 +1,22 @@
+# Build output
+/target/
+
+# IDE
+.idea/
+.vscode/
+*.iml
+
+# Mac
+.DS_Store
+
+# Logs
+*.log
+
+# Java
+*.class
+
+# Application config with credentials - keep local only
+src/main/resources/db.properties
+
+# Optional environment files
+.env
