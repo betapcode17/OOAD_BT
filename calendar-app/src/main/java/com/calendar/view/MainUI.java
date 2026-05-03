@@ -11,6 +11,8 @@ import java.sql.SQLException;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
+import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
 import java.util.List;
 
 import javax.swing.BorderFactory;
@@ -22,10 +24,16 @@ import javax.swing.JList;
 import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.JScrollPane;
+import javax.swing.JTabbedPane;
+import javax.swing.JTable;
+import javax.swing.table.DefaultTableModel;
 
 import com.calendar.controller.AddAppointmentController;
 import com.calendar.model.bean.Appointment;
 import com.calendar.model.bo.AppointmentBO;
+import com.calendar.model.dao.GroupParticipantDAO;
+import com.calendar.model.dao.ReminderDAO;
+import com.calendar.model.dao.ReminderDAO.ReminderView;
 import com.calendar.view.component.AppointmentCardRenderer;
 import com.calendar.view.component.MiniCalendar;
 
@@ -35,6 +43,12 @@ public class MainUI extends JFrame {
     private final DefaultListModel<Appointment> appointmentListModel;
     private final JList<Appointment> appointmentList;
     private final MiniCalendar miniCalendar;
+    private final DefaultTableModel reminderTableModel;
+    private final JTable reminderTable;
+    private final DefaultTableModel groupMeetingTableModel;
+    private final JTable groupMeetingTable;
+    private final List<Appointment> groupMeetingRows;
+    private static final DateTimeFormatter DT_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
 
     public MainUI() {
         this.appointmentBO = new AppointmentBO();
@@ -42,12 +56,27 @@ public class MainUI extends JFrame {
         this.appointmentListModel = new DefaultListModel<>();
         this.appointmentList = new JList<>(appointmentListModel);
         this.miniCalendar = new MiniCalendar();
+        this.reminderTableModel = new DefaultTableModel(new Object[]{"Appointment", "Reminder Time", "Reminder Message"}, 0) {
+            @Override
+            public boolean isCellEditable(int row, int column) {
+                return false;
+            }
+        };
+        this.reminderTable = new JTable(reminderTableModel);
+        this.groupMeetingTableModel = new DefaultTableModel(new Object[]{"Meeting Title", "Start", "End", "Location"}, 0) {
+            @Override
+            public boolean isCellEditable(int row, int column) {
+                return false;
+            }
+        };
+        this.groupMeetingTable = new JTable(groupMeetingTableModel);
+        this.groupMeetingRows = new ArrayList<>();
 
         // Listen for date clicks on mini calendar
         miniCalendar.setDateClickListener(date -> openAddAppointmentDialogForDate(date));
 
         initializeUI();
-        loadAppointments();
+        loadAllData();
     }
 
     private void initializeUI() {
@@ -70,7 +99,7 @@ public class MainUI extends JFrame {
         JPanel sidebar = createSidebar();
         mainContent.add(sidebar, BorderLayout.WEST);
 
-        // ===== CENTER (Appointments List) =====
+        // ===== CENTER (Tabbed Views) =====
         JPanel centerPanel = createCenterPanel();
         mainContent.add(centerPanel, BorderLayout.CENTER);
 
@@ -132,7 +161,7 @@ public class MainUI extends JFrame {
         centerPanel.setOpaque(false);
 
         // Header
-        JLabel header = new JLabel("Appointments");
+        JLabel header = new JLabel("Schedule");
         header.setFont(new Font("SansSerif", Font.BOLD, 20));
         header.setForeground(new Color(40, 50, 60));
 
@@ -141,6 +170,21 @@ public class MainUI extends JFrame {
         headerPanel.add(header, BorderLayout.WEST);
 
         centerPanel.add(headerPanel, BorderLayout.NORTH);
+
+        JTabbedPane tabbedPane = new JTabbedPane();
+        tabbedPane.setFont(new Font("SansSerif", Font.BOLD, 13));
+        tabbedPane.addTab("View Appointments", createAppointmentsTab());
+        tabbedPane.addTab("View Reminders", createRemindersTab());
+        tabbedPane.addTab("View Group Meetings", createGroupMeetingsTab());
+
+        centerPanel.add(tabbedPane, BorderLayout.CENTER);
+
+        return centerPanel;
+    }
+
+    private JPanel createAppointmentsTab() {
+        JPanel tab = new JPanel(new BorderLayout());
+        tab.setOpaque(false);
 
         // Appointment List with Custom Renderer
         appointmentList.setCellRenderer(new AppointmentCardRenderer());
@@ -166,10 +210,77 @@ public class MainUI extends JFrame {
         ));
         scrollPane.setBackground(new Color(248, 249, 250));
 
-        centerPanel.add(scrollPane, BorderLayout.CENTER);
+        tab.add(scrollPane, BorderLayout.CENTER);
 
-        return centerPanel;
+        return tab;
+        }
+
+        private JPanel createRemindersTab() {
+        JPanel tab = new JPanel(new BorderLayout());
+        tab.setOpaque(false);
+
+        reminderTable.setRowHeight(32);
+        JScrollPane scrollPane = new JScrollPane(reminderTable);
+        scrollPane.setBorder(BorderFactory.createCompoundBorder(
+            BorderFactory.createLineBorder(new Color(220, 225, 235), 1),
+            BorderFactory.createEmptyBorder(8, 8, 8, 8)
+        ));
+        tab.add(scrollPane, BorderLayout.CENTER);
+        return tab;
+        }
+
+        private JPanel createGroupMeetingsTab() {
+        JPanel tab = new JPanel(new BorderLayout());
+        tab.setOpaque(false);
+
+        groupMeetingTable.setRowHeight(32);
+            groupMeetingTable.addMouseListener(new MouseAdapter() {
+                @Override
+                public void mouseClicked(MouseEvent e) {
+                    if (e.getClickCount() == 2) {
+                        int row = groupMeetingTable.rowAtPoint(e.getPoint());
+                        if (row >= 0) {
+                            showGroupMeetingDetail(row);
+                        }
+                    }
+                }
+            });
+        JScrollPane scrollPane = new JScrollPane(groupMeetingTable);
+        scrollPane.setBorder(BorderFactory.createCompoundBorder(
+            BorderFactory.createLineBorder(new Color(220, 225, 235), 1),
+            BorderFactory.createEmptyBorder(8, 8, 8, 8)
+        ));
+        tab.add(scrollPane, BorderLayout.CENTER);
+        return tab;
     }
+
+        private void showGroupMeetingDetail(int row) {
+            if (row < 0 || row >= groupMeetingRows.size()) {
+                return;
+            }
+
+            Appointment meeting = groupMeetingRows.get(row);
+            try {
+                GroupParticipantDAO groupParticipantDAO = new GroupParticipantDAO();
+                int participantCount = groupParticipantDAO.countParticipants(meeting.getId());
+                List<String> participantNames = groupParticipantDAO.findParticipantNames(meeting.getId());
+                String names = participantNames.isEmpty() ? "No participants" : String.join(", ", participantNames);
+
+                String message = "Meeting Title: " + meeting.getTitle() + System.lineSeparator()
+                        + "Location: " + (meeting.getLocation() == null ? "" : meeting.getLocation()) + System.lineSeparator()
+                        + "Start: " + (meeting.getStartTime() == null ? "" : meeting.getStartTime().format(DT_FORMATTER)) + System.lineSeparator()
+                        + "End: " + (meeting.getEndTime() == null ? "" : meeting.getEndTime().format(DT_FORMATTER)) + System.lineSeparator()
+                        + "Number of participants: " + participantCount + System.lineSeparator()
+                        + "Participants: " + names;
+
+                JOptionPane.showMessageDialog(this, message, "Group Meeting Details", JOptionPane.INFORMATION_MESSAGE);
+            } catch (SQLException exception) {
+                JOptionPane.showMessageDialog(this,
+                        "Unable to load group meeting details: " + exception.getMessage(),
+                        "Database Error",
+                        JOptionPane.ERROR_MESSAGE);
+            }
+        }
 
     private JPanel createBottomBar() {
         JPanel bottomBar = new JPanel(new BorderLayout());
@@ -240,7 +351,13 @@ public class MainUI extends JFrame {
     }
 
     public void refreshAppointments() {
+        loadAllData();
+    }
+
+    private void loadAllData() {
         loadAppointments();
+        loadReminders();
+        loadGroupMeetings();
     }
 
     private void loadAppointments() {
@@ -260,6 +377,50 @@ public class MainUI extends JFrame {
                     "Database Error",
                     JOptionPane.ERROR_MESSAGE
             );
+        }
+    }
+
+    private void loadReminders() {
+        try {
+            ReminderDAO reminderDAO = new ReminderDAO();
+            List<ReminderView> reminders = reminderDAO.getAllReminders();
+            reminderTableModel.setRowCount(0);
+            for (ReminderView reminder : reminders) {
+                String reminderTime = reminder.getReminderTime() == null ? "" : reminder.getReminderTime().format(DT_FORMATTER);
+                String message = "Remind " + reminder.getReminderMinutes() + " minutes before";
+                reminderTableModel.addRow(new Object[]{
+                        reminder.getAppointmentTitle(),
+                        reminderTime,
+                        message
+                });
+            }
+        } catch (SQLException exception) {
+            reminderTableModel.setRowCount(0);
+            reminderTableModel.addRow(new Object[]{"Error", "", exception.getMessage()});
+        }
+    }
+
+    private void loadGroupMeetings() {
+        try {
+            List<Appointment> appointments = appointmentBO.getAllAppointments();
+            groupMeetingTableModel.setRowCount(0);
+            groupMeetingRows.clear();
+            for (Appointment appointment : appointments) {
+                if (!"GROUP".equalsIgnoreCase(appointment.getMeetingType())) {
+                    continue;
+                }
+                groupMeetingRows.add(appointment);
+                groupMeetingTableModel.addRow(new Object[]{
+                        appointment.getTitle(),
+                        appointment.getStartTime() == null ? "" : appointment.getStartTime().format(DT_FORMATTER),
+                        appointment.getEndTime() == null ? "" : appointment.getEndTime().format(DT_FORMATTER),
+                        appointment.getLocation()
+                });
+            }
+        } catch (SQLException exception) {
+            groupMeetingTableModel.setRowCount(0);
+            groupMeetingRows.clear();
+            groupMeetingTableModel.addRow(new Object[]{"Error", "", "", exception.getMessage()});
         }
     }
 }

@@ -1,13 +1,5 @@
 package com.calendar.model.bo;
 
-import com.calendar.model.bean.Appointment;
-import com.calendar.model.bean.GroupMeeting;
-import com.calendar.model.bean.Reminder;
-import com.calendar.model.dao.AppointmentDAO;
-import com.calendar.model.dao.ReminderDAO;
-import com.calendar.model.dto.AppointmentDTO;
-import com.calendar.util.Validator;
-
 import java.sql.SQLException;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
@@ -15,6 +7,14 @@ import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+
+import com.calendar.model.bean.Appointment;
+import com.calendar.model.bean.GroupMeeting;
+import com.calendar.model.bean.Reminder;
+import com.calendar.model.dao.AppointmentDAO;
+import com.calendar.model.dao.ReminderDAO;
+import com.calendar.model.dto.AppointmentDTO;
+import com.calendar.util.Validator;
 
 public class AppointmentBO {
     private static final Long CURRENT_USER_ID = 1L;
@@ -40,6 +40,14 @@ public class AppointmentBO {
     }
 
     public SaveOutcome addAppointment(AppointmentDTO dto) {
+        return saveAppointment(dto, false);
+    }
+
+    public SaveOutcome addAppointmentAllowConflict(AppointmentDTO dto) {
+        return saveAppointment(dto, true);
+    }
+
+    private SaveOutcome saveAppointment(AppointmentDTO dto, boolean allowConflict) {
         Validator.ValidationResult validationResult = Validator.validateAppointmentDTO(dto);
         if (!validationResult.isValid()) {
             return SaveOutcome.failure(validationResult.getErrors(), List.of());
@@ -54,7 +62,7 @@ public class AppointmentBO {
 
             List<Long> participantIds = resolveParticipantIds(dto.getParticipantIds());
             List<Appointment> conflicts = appointmentDAO.findConflictingAppointments(startTime, endTime, participantIds);
-            if (!conflicts.isEmpty()) {
+            if (!allowConflict && !conflicts.isEmpty()) {
                 List<String> suggestions = suggestGroupMeeting(dto);
                 return SaveOutcome.conflict(conflicts, suggestions);
             }
@@ -114,6 +122,20 @@ public class AppointmentBO {
         }
     }
 
+    // New helper methods for UI-driven group meeting flows
+    public List<Appointment> checkConflict(LocalDateTime startTime, LocalDateTime endTime, List<Long> participantIds) throws SQLException {
+        return appointmentDAO.findConflictingAppointments(startTime, endTime, participantIds);
+    }
+
+    public Appointment findMatchingGroupMeeting(String title, long durationMinutes) throws SQLException {
+        return appointmentDAO.findMatchingGroupMeeting(title, durationMinutes);
+    }
+
+    public void addParticipantToGroup(Long appointmentId, String participantName) throws SQLException {
+        com.calendar.model.dao.GroupParticipantDAO gpdao = new com.calendar.model.dao.GroupParticipantDAO();
+        gpdao.insert(appointmentId, participantName);
+    }
+
     private Appointment buildAppointment(AppointmentDTO dto, LocalDateTime startTime, LocalDateTime endTime, List<Long> participantIds) {
         Appointment appointment = participantIds.size() > 1 ? new GroupMeeting() : new Appointment();
         appointment.setCalendarId(parseCalendarId(dto.getCalendarId()));
@@ -129,27 +151,29 @@ public class AppointmentBO {
     }
 
     private void saveReminderIfNeeded(AppointmentDTO dto, Long appointmentId) throws SQLException {
-        Integer reminderMinutes = parseReminderMinutes(dto.getReminderMinutes());
-        if (reminderMinutes == null) {
-            reminderMinutes = DEFAULT_REMINDER_MINUTES;
+        String raw = dto.getReminderMinutes();
+        if (raw == null || raw.trim().isEmpty()) {
+            raw = String.valueOf(DEFAULT_REMINDER_MINUTES);
         }
-
-        Reminder reminder = new Reminder();
-        reminder.setAppointmentId(appointmentId);
-        reminder.setReminderMinutes(reminderMinutes);
-        reminder.setSent(Boolean.FALSE);
-        reminderDAO.save(reminder);
+        String[] parts = raw.split(",");
+        for (String p : parts) {
+            String t = p.trim();
+            if (t.isEmpty()) continue;
+            try {
+                int minutes = Integer.parseInt(t);
+                Reminder reminder = new Reminder();
+                reminder.setAppointmentId(appointmentId);
+                reminder.setReminderMinutes(minutes);
+                reminder.setSent(Boolean.FALSE);
+                reminderDAO.save(reminder);
+            } catch (NumberFormatException ex) {
+                // skip invalid entry
+            }
+        }
     }
 
     private LocalDateTime parseDateTime(String rawValue) {
         return LocalDateTime.parse(rawValue.trim(), FORMATTER);
-    }
-
-    private Integer parseReminderMinutes(String rawValue) {
-        if (rawValue == null || rawValue.trim().isEmpty()) {
-            return null;
-        }
-        return Integer.valueOf(rawValue);
     }
 
     private Long parseCalendarId(String rawValue) {

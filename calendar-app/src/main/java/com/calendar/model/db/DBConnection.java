@@ -1,8 +1,5 @@
 package com.calendar.model.db;
 
-import com.calendar.model.bean.Appointment;
-import com.calendar.model.bean.Reminder;
-
 import java.io.IOException;
 import java.io.InputStream;
 import java.sql.Connection;
@@ -14,6 +11,9 @@ import java.sql.Statement;
 import java.time.LocalDateTime;
 import java.util.Properties;
 import java.util.concurrent.atomic.AtomicBoolean;
+
+import com.calendar.model.bean.Appointment;
+import com.calendar.model.bean.Reminder;
 
 public final class DBConnection {
     /*
@@ -92,6 +92,12 @@ public final class DBConnection {
                     + "CONSTRAINT fk_participant_appointment FOREIGN KEY (appointment_id) REFERENCES appointments(id) ON DELETE CASCADE, "
                     + "CONSTRAINT fk_participant_user FOREIGN KEY (user_id) REFERENCES users(id)"
                     + ")");
+                statement.execute("CREATE TABLE IF NOT EXISTS group_participants ("
+                    + "id BIGINT AUTO_INCREMENT PRIMARY KEY, "
+                    + "appointment_id BIGINT NOT NULL, "
+                    + "participant_name VARCHAR(120) NOT NULL, "
+                    + "CONSTRAINT fk_groupparticipant_appointment FOREIGN KEY (appointment_id) REFERENCES appointments(id) ON DELETE CASCADE"
+                    + ")");
             statement.execute("CREATE TABLE IF NOT EXISTS reminders ("
                     + "id BIGINT AUTO_INCREMENT PRIMARY KEY, "
                     + "appointment_id BIGINT NOT NULL, "
@@ -110,6 +116,7 @@ public final class DBConnection {
         statement.execute("SET FOREIGN_KEY_CHECKS=0");
         statement.execute("DROP TABLE IF EXISTS reminders");
         statement.execute("DROP TABLE IF EXISTS appointment_participants");
+        statement.execute("DROP TABLE IF EXISTS group_participants");
         statement.execute("DROP TABLE IF EXISTS appointments");
         statement.execute("DROP TABLE IF EXISTS calendars");
         statement.execute("DROP TABLE IF EXISTS users");
@@ -139,26 +146,84 @@ public final class DBConnection {
     }
 
     private static void seedSampleAppointment(Connection connection) throws SQLException {
+        boolean hasAnyAppointment = false;
+        boolean hasGroupMeeting = false;
+
         try (Statement statement = connection.createStatement();
              ResultSet resultSet = statement.executeQuery("SELECT COUNT(*) FROM appointments")) {
-            if (resultSet.next() && resultSet.getInt(1) == 0) {
-                Appointment appointment = new Appointment();
-                appointment.setCalendarId(1L);
-                appointment.setTitle("Team Standup");
-                appointment.setLocation("Meeting Room A");
-                appointment.setStartTime(LocalDateTime.now().plusDays(1).withHour(9).withMinute(0).withSecond(0).withNano(0));
-                appointment.setEndTime(appointment.getStartTime().plusMinutes(30));
-                appointment.setMeetingType("PERSONAL");
-
-                long appointmentId = insertAppointment(connection, appointment);
-                insertParticipant(connection, appointmentId, 1L);
-
-                Reminder reminder = new Reminder();
-                reminder.setAppointmentId(appointmentId);
-                reminder.setReminderMinutes(15);
-                reminder.setSent(Boolean.FALSE);
-                insertReminder(connection, reminder);
+            if (resultSet.next()) {
+                hasAnyAppointment = resultSet.getInt(1) > 0;
             }
+        }
+
+        try (Statement statement = connection.createStatement();
+             ResultSet resultSet = statement.executeQuery("SELECT COUNT(*) FROM appointments WHERE meeting_type = 'GROUP'")) {
+            if (resultSet.next()) {
+                hasGroupMeeting = resultSet.getInt(1) > 0;
+            }
+        }
+
+        if (!hasAnyAppointment) {
+            Appointment appointment = new Appointment();
+            appointment.setCalendarId(1L);
+            appointment.setTitle("Team Standup");
+            appointment.setLocation("Meeting Room A");
+            appointment.setStartTime(LocalDateTime.now().plusDays(1).withHour(9).withMinute(0).withSecond(0).withNano(0));
+            appointment.setEndTime(appointment.getStartTime().plusMinutes(30));
+            appointment.setMeetingType("PERSONAL");
+
+            long appointmentId = insertAppointment(connection, appointment);
+            insertParticipant(connection, appointmentId, 1L);
+
+            Reminder reminder = new Reminder();
+            reminder.setAppointmentId(appointmentId);
+            reminder.setReminderMinutes(15);
+            reminder.setSent(Boolean.FALSE);
+            insertReminder(connection, reminder);
+        }
+
+        if (!hasGroupMeeting) {
+            Appointment groupMeetingOne = new Appointment();
+            groupMeetingOne.setCalendarId(1L);
+            groupMeetingOne.setTitle("Product Sync");
+            groupMeetingOne.setLocation("Conference Room B");
+            groupMeetingOne.setStartTime(LocalDateTime.now().plusDays(2).withHour(14).withMinute(0).withSecond(0).withNano(0));
+            groupMeetingOne.setEndTime(groupMeetingOne.getStartTime().plusMinutes(60));
+            groupMeetingOne.setMeetingType("GROUP");
+
+            long groupMeetingOneId = insertAppointment(connection, groupMeetingOne);
+            insertParticipant(connection, groupMeetingOneId, 1L);
+            insertParticipant(connection, groupMeetingOneId, 2L);
+            insertParticipant(connection, groupMeetingOneId, 3L);
+            insertGroupParticipant(connection, groupMeetingOneId, "Alice Johnson");
+            insertGroupParticipant(connection, groupMeetingOneId, "Bob Smith");
+            insertGroupParticipant(connection, groupMeetingOneId, "Charlie Lee");
+
+            Reminder groupReminderOne = new Reminder();
+            groupReminderOne.setAppointmentId(groupMeetingOneId);
+            groupReminderOne.setReminderMinutes(30);
+            groupReminderOne.setSent(Boolean.FALSE);
+            insertReminder(connection, groupReminderOne);
+
+            Appointment groupMeetingTwo = new Appointment();
+            groupMeetingTwo.setCalendarId(2L);
+            groupMeetingTwo.setTitle("Sprint Planning");
+            groupMeetingTwo.setLocation("Online - Meet");
+            groupMeetingTwo.setStartTime(LocalDateTime.now().plusDays(3).withHour(10).withMinute(0).withSecond(0).withNano(0));
+            groupMeetingTwo.setEndTime(groupMeetingTwo.getStartTime().plusMinutes(90));
+            groupMeetingTwo.setMeetingType("GROUP");
+
+            long groupMeetingTwoId = insertAppointment(connection, groupMeetingTwo);
+            insertParticipant(connection, groupMeetingTwoId, 1L);
+            insertParticipant(connection, groupMeetingTwoId, 2L);
+            insertGroupParticipant(connection, groupMeetingTwoId, "Alice Johnson");
+            insertGroupParticipant(connection, groupMeetingTwoId, "Bob Smith");
+
+            Reminder groupReminderTwo = new Reminder();
+            groupReminderTwo.setAppointmentId(groupMeetingTwoId);
+            groupReminderTwo.setReminderMinutes(20);
+            groupReminderTwo.setSent(Boolean.FALSE);
+            insertReminder(connection, groupReminderTwo);
         }
     }
 
@@ -209,6 +274,15 @@ public final class DBConnection {
                 "INSERT INTO appointment_participants(appointment_id, user_id) VALUES(?, ?)")) {
             preparedStatement.setLong(1, appointmentId);
             preparedStatement.setLong(2, userId);
+            preparedStatement.executeUpdate();
+        }
+    }
+
+    private static void insertGroupParticipant(Connection connection, long appointmentId, String participantName) throws SQLException {
+        try (PreparedStatement preparedStatement = connection.prepareStatement(
+                "INSERT INTO group_participants(appointment_id, participant_name) VALUES(?, ?)")) {
+            preparedStatement.setLong(1, appointmentId);
+            preparedStatement.setString(2, participantName);
             preparedStatement.executeUpdate();
         }
     }

@@ -19,9 +19,7 @@ import javax.swing.JLabel;
 import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.JScrollPane;
-import javax.swing.JSpinner;
 import javax.swing.JTextField;
-import javax.swing.SpinnerNumberModel;
 import javax.swing.SwingUtilities;
 import javax.swing.border.EmptyBorder;
 import javax.swing.border.LineBorder;
@@ -38,7 +36,7 @@ public class AddAppointmentUI extends JDialog {
     private final JTextField locationField;
     private final DateTimePickerField startTimeField;
     private final DateTimePickerField endTimeField;
-    private final JSpinner reminderSpinner;
+    private final javax.swing.JTextField reminderField;
     private final JTextField participantIdsField;
     private final JButton saveButton;
     private boolean isFormValid = false;
@@ -57,7 +55,7 @@ public class AddAppointmentUI extends JDialog {
         this.locationField = new JTextField();
         this.startTimeField = new DateTimePickerField(now);
         this.endTimeField = new DateTimePickerField(later);
-        this.reminderSpinner = new JSpinner(new SpinnerNumberModel(15, 0, 1440, 5));
+        this.reminderField = new javax.swing.JTextField("15");
         this.participantIdsField = new JTextField("1");
         this.saveButton = new JButton("💾 Save");
 
@@ -137,9 +135,11 @@ public class AddAppointmentUI extends JDialog {
         JPanel reminderPanel = new JPanel();
         reminderPanel.setOpaque(false);
         reminderPanel.setLayout(new BorderLayout(8, 0));
-        reminderSpinner.setPreferredSize(new Dimension(80, 36));
-        reminderPanel.add(reminderSpinner, BorderLayout.WEST);
-        reminderPanel.add(new JLabel("minutes before"), BorderLayout.CENTER);
+        reminderField.setPreferredSize(new Dimension(140, 36));
+        reminderField.setFont(new Font("SansSerif", Font.PLAIN, 13));
+        reminderField.setBorder(new LineBorder(new Color(220, 225, 235), 1, false));
+        reminderPanel.add(reminderField, BorderLayout.WEST);
+        reminderPanel.add(new JLabel("minutes before (comma-separated for multiple, e.g. 15,30)"), BorderLayout.CENTER);
         row = addFormRow(card, labelGbc, fieldGbc, row, "Reminder", reminderPanel);
 
         // Participant IDs
@@ -266,7 +266,7 @@ public class AddAppointmentUI extends JDialog {
             validateForm();
         });
 
-        reminderSpinner.addChangeListener(e -> validateForm());
+        reminderField.getDocument().addDocumentListener(validationListener);
 
         // Validate on initial load (no visual errors until fields are touched)
         SwingUtilities.invokeLater(this::validateForm);
@@ -282,8 +282,22 @@ public class AddAppointmentUI extends JDialog {
             timeOrderValid = startTimeField.getDateTime().isBefore(endTimeField.getDateTime());
         }
 
-        int reminder = (Integer) reminderSpinner.getValue();
-        boolean reminderValid = reminder >= 0;
+        boolean reminderValid = true;
+        String reminderText = reminderField.getText();
+        if (reminderText != null && !reminderText.trim().isEmpty()) {
+            try {
+                String[] parts = reminderText.split(",");
+                for (String p : parts) {
+                    int v = Integer.parseInt(p.trim());
+                    if (v < 0) {
+                        reminderValid = false;
+                        break;
+                    }
+                }
+            } catch (NumberFormatException ex) {
+                reminderValid = false;
+            }
+        }
 
         // Visual feedback only for touched fields
         titleField.setBackground((titleTouched && !titleValid) ? new Color(255, 200, 200) : Color.WHITE);
@@ -304,7 +318,7 @@ public class AddAppointmentUI extends JDialog {
         dto.setLocation(locationField.getText());
         dto.setStartTime(startTimeField.getFormattedDateTime());
         dto.setEndTime(endTimeField.getFormattedDateTime());
-        dto.setReminderMinutes(String.valueOf(reminderSpinner.getValue()));
+        dto.setReminderMinutes(reminderField.getText());
         dto.setParticipantIds(participantIdsField.getText());
         return dto;
     }
@@ -325,7 +339,7 @@ public class AddAppointmentUI extends JDialog {
         LocalDateTime now = LocalDateTime.now();
         startTimeField.setDateTime(now);
         endTimeField.setDateTime(now.plusMinutes(30));
-        reminderSpinner.setValue(15);
+        reminderField.setText("15");
         participantIdsField.setText("1");
         // Reset touched state so validation highlights do not show immediately
         titleTouched = false;

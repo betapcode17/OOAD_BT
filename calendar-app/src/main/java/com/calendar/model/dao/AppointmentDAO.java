@@ -1,8 +1,5 @@
 package com.calendar.model.dao;
 
-import com.calendar.model.bean.Appointment;
-import com.calendar.model.db.DBConnection;
-
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
@@ -11,6 +8,9 @@ import java.sql.Statement;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
+
+import com.calendar.model.bean.Appointment;
+import com.calendar.model.db.DBConnection;
 
 public class AppointmentDAO {
     public Appointment save(Appointment appointment, List<Long> participantIds) throws SQLException {
@@ -80,6 +80,23 @@ public class AppointmentDAO {
             }
         }
         return conflicts;
+    }
+
+    public Appointment findMatchingGroupMeeting(String title, long durationMinutes) throws SQLException {
+        String sql = "SELECT id, calendar_id, title, location, start_time, end_time, meeting_type "
+                + "FROM appointments WHERE meeting_type = 'GROUP' AND title = ? "
+                + "AND TIMESTAMPDIFF(MINUTE, start_time, end_time) = ? LIMIT 1";
+        try (Connection connection = DBConnection.getConnection();
+             PreparedStatement ps = connection.prepareStatement(sql)) {
+            ps.setString(1, title);
+            ps.setLong(2, durationMinutes);
+            try (ResultSet rs = ps.executeQuery()) {
+                if (rs.next()) {
+                    return mapAppointment(rs);
+                }
+            }
+        }
+        return null;
     }
 
     private long insertAppointment(Connection connection, Appointment appointment) throws SQLException {
