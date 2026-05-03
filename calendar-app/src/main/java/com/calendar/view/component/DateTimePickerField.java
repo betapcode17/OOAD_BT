@@ -60,7 +60,79 @@ public class DateTimePickerField extends JPanel {
         pickerDialog.setSize(500, 380);
         pickerDialog.setLocationRelativeTo(null);
 
-        // Calendar panel
+        // If date picker is locked, show a simplified time-only dialog (date is fixed)
+        if (datePickerLocked) {
+            JPanel top = new JPanel(new BorderLayout());
+            top.setBorder(BorderFactory.createEmptyBorder(16, 16, 0, 16));
+            JLabel fixedDate = new JLabel(selectedDateTime.toLocalDate().toString());
+            fixedDate.setFont(new Font("SansSerif", Font.BOLD, 14));
+            fixedDate.setHorizontalAlignment(JLabel.CENTER);
+            top.add(fixedDate, BorderLayout.CENTER);
+
+            // Time panel
+            JPanel timePanel = new JPanel();
+            timePanel.setBackground(new Color(245, 247, 250));
+            timePanel.setBorder(BorderFactory.createEmptyBorder(12, 12, 12, 12));
+
+            JLabel timeLabel = new JLabel("Time:");
+            timeLabel.setFont(new Font("SansSerif", Font.BOLD, 13));
+            timePanel.add(timeLabel);
+
+            SpinnerNumberModel hourModel = new SpinnerNumberModel(selectedDateTime.getHour(), 0, 23, 1);
+            JSpinner hourSpinner = new JSpinner(hourModel);
+            hourSpinner.setPreferredSize(new Dimension(50, 30));
+            hourSpinner.setFont(new Font("SansSerif", Font.PLAIN, 13));
+
+            SpinnerNumberModel minuteModel = new SpinnerNumberModel(selectedDateTime.getMinute(), 0, 59, 5);
+            JSpinner minuteSpinner = new JSpinner(minuteModel);
+            minuteSpinner.setPreferredSize(new Dimension(50, 30));
+            minuteSpinner.setFont(new Font("SansSerif", Font.PLAIN, 13));
+
+            timePanel.add(hourSpinner);
+            timePanel.add(new JLabel("  :  "));
+            timePanel.add(minuteSpinner);
+
+            JPanel buttonPanel = new JPanel();
+            buttonPanel.setBackground(new Color(245, 247, 250));
+            buttonPanel.setBorder(BorderFactory.createEmptyBorder(12, 16, 12, 16));
+
+            JButton okButton = new JButton("OK");
+            okButton.setBackground(new Color(46, 204, 113));
+            okButton.setForeground(Color.WHITE);
+            okButton.setFocusPainted(false);
+            okButton.setFont(new Font("SansSerif", Font.BOLD, 12));
+            okButton.setPreferredSize(new Dimension(100, 36));
+            okButton.addActionListener(e -> {
+                int hour = (Integer) hourSpinner.getValue();
+                int minute = (Integer) minuteSpinner.getValue();
+                selectedDateTime = LocalDateTime.of(
+                        selectedDateTime.getYear(),
+                        selectedDateTime.getMonth(),
+                        selectedDateTime.getDayOfMonth(),
+                        hour,
+                        minute
+                );
+                updateDisplay();
+                pickerDialog.dispose();
+            });
+
+            JButton cancelButton = new JButton("Cancel");
+            cancelButton.setFocusPainted(false);
+            cancelButton.setFont(new Font("SansSerif", Font.BOLD, 12));
+            cancelButton.setPreferredSize(new Dimension(100, 36));
+            cancelButton.addActionListener(e -> pickerDialog.dispose());
+
+            buttonPanel.add(okButton);
+            buttonPanel.add(cancelButton);
+
+            pickerDialog.add(top, BorderLayout.NORTH);
+            pickerDialog.add(timePanel, BorderLayout.CENTER);
+            pickerDialog.add(buttonPanel, BorderLayout.SOUTH);
+            pickerDialog.setVisible(true);
+            return;
+        }
+
+        // Calendar panel (full) when date picking is allowed
         JPanel calendarPanel = new JPanel(new GridLayout(7, 7, 6, 6));
         calendarPanel.setBorder(BorderFactory.createEmptyBorder(16, 16, 16, 16));
         calendarPanel.setBackground(Color.WHITE);
@@ -110,44 +182,36 @@ public class DateTimePickerField extends JPanel {
             }
 
             final int currentDay = day;
-            
-            // If date picker is locked, disable day selection but allow time editing
-            if (datePickerLocked) {
-                dayButton.setEnabled(false);
-                dayButton.setBackground(new Color(240, 240, 240));
-                dayButton.setForeground(new Color(180, 180, 180));
-            } else {
-                dayButton.addActionListener(e -> {
-                    selectedDateTime = LocalDateTime.of(year, month + 1, currentDay, selectedDateTime.getHour(), selectedDateTime.getMinute());
-                    // Update highlights for all day buttons
-                    for (java.awt.Component comp : calendarPanel.getComponents()) {
-                        if (comp instanceof javax.swing.JButton b) {
-                            try {
-                                int d = Integer.parseInt(b.getText());
-                                if (d == currentDay) {
-                                    b.setBackground(new Color(52, 152, 219));
-                                    b.setForeground(Color.WHITE);
-                                    b.setOpaque(true);
-                                } else {
-                                    b.setBackground(Color.WHITE);
-                                    b.setForeground(new Color(40, 50, 60));
-                                    b.setOpaque(true);
-                                }
-                            } catch (NumberFormatException ex) {
-                                // not a day button (header/empty), ignore
+            dayButton.addActionListener(e -> {
+                selectedDateTime = LocalDateTime.of(year, month + 1, currentDay, selectedDateTime.getHour(), selectedDateTime.getMinute());
+                // Update highlights for all day buttons
+                for (java.awt.Component comp : calendarPanel.getComponents()) {
+                    if (comp instanceof javax.swing.JButton b) {
+                        try {
+                            int d = Integer.parseInt(b.getText());
+                            if (d == currentDay) {
+                                b.setBackground(new Color(52, 152, 219));
+                                b.setForeground(Color.WHITE);
+                                b.setOpaque(true);
+                            } else {
+                                b.setBackground(Color.WHITE);
+                                b.setForeground(new Color(40, 50, 60));
+                                b.setOpaque(true);
                             }
+                        } catch (NumberFormatException ex) {
+                            // not a day button (header/empty), ignore
                         }
                     }
-                    updateDisplay();
-                });
-            }
+                }
+                updateDisplay();
+            });
 
             calendarPanel.add(dayButton);
         }
 
         // Time panel
         JPanel timePanel = new JPanel();
-            timePanel.setBackground(new Color(245, 247, 250));
+        timePanel.setBackground(new Color(245, 247, 250));
         timePanel.setBorder(BorderFactory.createEmptyBorder(12, 12, 12, 12));
 
         JLabel timeLabel = new JLabel("Time:");
@@ -158,13 +222,13 @@ public class DateTimePickerField extends JPanel {
         SpinnerNumberModel hourModel = new SpinnerNumberModel(selectedDateTime.getHour(), 0, 23, 1);
         JSpinner hourSpinner = new JSpinner(hourModel);
         hourSpinner.setPreferredSize(new Dimension(50, 30));
-    hourSpinner.setFont(new Font("SansSerif", Font.PLAIN, 13));
+        hourSpinner.setFont(new Font("SansSerif", Font.PLAIN, 13));
 
         // Minute spinner
         SpinnerNumberModel minuteModel = new SpinnerNumberModel(selectedDateTime.getMinute(), 0, 59, 5);
         JSpinner minuteSpinner = new JSpinner(minuteModel);
         minuteSpinner.setPreferredSize(new Dimension(50, 30));
-    minuteSpinner.setFont(new Font("SansSerif", Font.PLAIN, 13));
+        minuteSpinner.setFont(new Font("SansSerif", Font.PLAIN, 13));
 
         timePanel.add(hourSpinner);
         timePanel.add(new JLabel("  :  "));
@@ -172,15 +236,15 @@ public class DateTimePickerField extends JPanel {
 
         // Buttons
         JPanel buttonPanel = new JPanel();
-            buttonPanel.setBackground(new Color(245, 247, 250));
-            buttonPanel.setBorder(BorderFactory.createEmptyBorder(12, 16, 12, 16));
+        buttonPanel.setBackground(new Color(245, 247, 250));
+        buttonPanel.setBorder(BorderFactory.createEmptyBorder(12, 16, 12, 16));
 
         JButton okButton = new JButton("OK");
         okButton.setBackground(new Color(46, 204, 113));
         okButton.setForeground(Color.WHITE);
         okButton.setFocusPainted(false);
-            okButton.setFont(new Font("SansSerif", Font.BOLD, 12));
-            okButton.setPreferredSize(new Dimension(100, 36));
+        okButton.setFont(new Font("SansSerif", Font.BOLD, 12));
+        okButton.setPreferredSize(new Dimension(100, 36));
         okButton.addActionListener(e -> {
             int hour = (Integer) hourSpinner.getValue();
             int minute = (Integer) minuteSpinner.getValue();
@@ -197,8 +261,8 @@ public class DateTimePickerField extends JPanel {
 
         JButton cancelButton = new JButton("Cancel");
         cancelButton.setFocusPainted(false);
-            cancelButton.setFont(new Font("SansSerif", Font.BOLD, 12));
-            cancelButton.setPreferredSize(new Dimension(100, 36));
+        cancelButton.setFont(new Font("SansSerif", Font.BOLD, 12));
+        cancelButton.setPreferredSize(new Dimension(100, 36));
         cancelButton.addActionListener(e -> pickerDialog.dispose());
 
         buttonPanel.add(okButton);
@@ -206,7 +270,6 @@ public class DateTimePickerField extends JPanel {
 
         pickerDialog.add(calendarPanel, BorderLayout.CENTER);
         pickerDialog.add(timePanel, BorderLayout.NORTH);
-            pickerDialog.add(buttonPanel, BorderLayout.SOUTH);
         pickerDialog.add(buttonPanel, BorderLayout.SOUTH);
         pickerDialog.setVisible(true);
     }

@@ -79,7 +79,8 @@ public class AddAppointmentController {
             return;
         }
 
-        JOptionPane.showMessageDialog(addAppointmentUI, buildOutcomeMessage(outcome), "Cannot Save Appointment", JOptionPane.WARNING_MESSAGE);
+        // Show validation or failure messages inline in the add form instead of a modal dialog
+        addAppointmentUI.showValidationMessages(outcome.getMessages());
     }
 
     private String buildOutcomeMessage(AppointmentBO.SaveOutcome outcome) {
