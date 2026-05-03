@@ -43,6 +43,8 @@ public class MainUI extends JFrame {
     private final DefaultListModel<Appointment> appointmentListModel;
     private final JList<Appointment> appointmentList;
     private final MiniCalendar miniCalendar;
+    private java.time.LocalDate selectedDate = null;
+    private JLabel statusLabel;
     private final DefaultTableModel reminderTableModel;
     private final JTable reminderTable;
     private final DefaultTableModel groupMeetingTableModel;
@@ -72,8 +74,8 @@ public class MainUI extends JFrame {
         this.groupMeetingTable = new JTable(groupMeetingTableModel);
         this.groupMeetingRows = new ArrayList<>();
 
-        // Listen for date clicks on mini calendar
-        miniCalendar.setDateClickListener(date -> openAddAppointmentDialogForDate(date));
+        // Listen for date clicks on mini calendar — only select date, do NOT open dialog
+        miniCalendar.setDateClickListener(date -> onDateSelected(date));
 
         initializeUI();
         loadAllData();
@@ -306,7 +308,7 @@ public class MainUI extends JFrame {
         bottomBar.add(buttonPanel, BorderLayout.EAST);
 
         // Status label
-        JLabel statusLabel = new JLabel("Ready");
+        statusLabel = new JLabel("Ready");
         statusLabel.setFont(new Font("SansSerif", Font.PLAIN, 12));
         statusLabel.setForeground(new Color(100, 120, 140));
         bottomBar.add(statusLabel, BorderLayout.WEST);
@@ -337,17 +339,21 @@ public class MainUI extends JFrame {
 
     private void openAddAppointmentDialog() {
         AddAppointmentUI addAppointmentUI = new AddAppointmentUI(this, addAppointmentController);
+        if (selectedDate != null) {
+            java.time.LocalDate date = selectedDate;
+            java.time.LocalDateTime startDateTime = java.time.LocalDateTime.of(date, java.time.LocalTime.of(9, 0));
+            addAppointmentUI.setStartDateTime(startDateTime);
+            addAppointmentUI.lockDateField();
+            // keep the calendar selection visible instead of clearing it
+            statusLabel.setText("Selected: " + date.toString());
+        }
         addAppointmentUI.setVisible(true);
     }
 
-    private void openAddAppointmentDialogForDate(LocalDate date) {
-        AddAppointmentUI addAppointmentUI = new AddAppointmentUI(this, addAppointmentController);
-        // Set the selected date as the start time (with 9:00 AM)
-        LocalDateTime startDateTime = LocalDateTime.of(date, LocalTime.of(9, 0));
-        addAppointmentUI.setStartDateTime(startDateTime);
-        // Lock date field to prevent changing the date; only time can be edited
-        addAppointmentUI.lockDateField();
-        addAppointmentUI.setVisible(true);
+    private void onDateSelected(LocalDate date) {
+        this.selectedDate = date;
+        miniCalendar.setSelectedDate(date);
+        statusLabel.setText("Selected: " + date.toString());
     }
 
     public void refreshAppointments() {

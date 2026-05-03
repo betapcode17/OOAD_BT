@@ -55,7 +55,7 @@ public class MiniCalendar extends JPanel {
 
         add(headerPanel, BorderLayout.NORTH);
 
-        // Calendar grid
+        // Single calendar grid with 7 columns x 7 rows (first row = headers), ensures stable 7-day header
         this.calendarPanel = new JPanel(new GridLayout(7, 7, 4, 4));
         this.calendarPanel.setOpaque(false);
         rebuildCalendarPanel();
@@ -67,7 +67,7 @@ public class MiniCalendar extends JPanel {
     private void rebuildCalendarPanel() {
         calendarPanel.removeAll();
 
-        // Day headers
+        // Day headers (first row)
         String[] dayHeaders = {"Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"};
         for (String dayHeader : dayHeaders) {
             JLabel dayLabel = new JLabel(dayHeader);
@@ -77,14 +77,12 @@ public class MiniCalendar extends JPanel {
             calendarPanel.add(dayLabel);
         }
 
-        // Date buttons
+        // Date cells: ensure exactly 42 cells (6 weeks x 7 days)
         LocalDate firstDay = currentMonth.atDay(1);
         int daysInMonth = currentMonth.lengthOfMonth();
         int startDayOfWeek = firstDay.getDayOfWeek().getValue() % 7; // 0 = Sunday
-        LocalDate today = LocalDate.now();
-        YearMonth todayMonth = YearMonth.now();
 
-        // Days from previous month to fill before current month
+        // previous-month fillers
         LocalDate previousMonthDate = firstDay.minusDays(startDayOfWeek);
         for (int i = 0; i < startDayOfWeek; i++) {
             JButton dayBtn = new JButton(String.valueOf(previousMonthDate.getDayOfMonth()));
@@ -98,7 +96,7 @@ public class MiniCalendar extends JPanel {
             previousMonthDate = previousMonthDate.plusDays(1);
         }
 
-        // Days of current month
+        // current month days
         for (int day = 1; day <= daysInMonth; day++) {
             final int currentDay = day;
             LocalDate currentDate = currentMonth.atDay(day);
@@ -107,22 +105,28 @@ public class MiniCalendar extends JPanel {
             dayBtn.setFont(new Font("SansSerif", Font.PLAIN, 11));
             dayBtn.setBorder(BorderFactory.createLineBorder(new Color(220, 220, 220)));
 
-            // Highlight selected date first, then today if not selected
             if (selectedDate != null && currentDate.equals(selectedDate)) {
                 dayBtn.setBackground(new Color(52, 152, 219));
                 dayBtn.setForeground(Color.WHITE);
                 dayBtn.setOpaque(true);
-            } else if (selectedDate == null && day == today.getDayOfMonth() && currentMonth.equals(todayMonth)) {
-                dayBtn.setBackground(new Color(52, 152, 219));
-                dayBtn.setForeground(Color.WHITE);
-                dayBtn.setOpaque(true);
+            } else if (selectedDate == null) {
+                LocalDate today = LocalDate.now();
+                YearMonth todayMonth = YearMonth.now();
+                if (day == today.getDayOfMonth() && currentMonth.equals(todayMonth)) {
+                    dayBtn.setBackground(new Color(52, 152, 219));
+                    dayBtn.setForeground(Color.WHITE);
+                    dayBtn.setOpaque(true);
+                } else {
+                    dayBtn.setBackground(Color.WHITE);
+                    dayBtn.setForeground(new Color(40, 50, 60));
+                    dayBtn.setOpaque(true);
+                }
             } else {
                 dayBtn.setBackground(Color.WHITE);
                 dayBtn.setForeground(new Color(40, 50, 60));
                 dayBtn.setOpaque(true);
             }
 
-            // Add click listener: set selected date and open Add Appointment dialog
             dayBtn.addActionListener(e -> {
                 LocalDate clickedDate = currentMonth.atDay(currentDay);
                 setSelectedDate(clickedDate);
@@ -134,10 +138,10 @@ public class MiniCalendar extends JPanel {
             calendarPanel.add(dayBtn);
         }
 
-        // Days from next month to fill after current month
-        int totalCells = startDayOfWeek + daysInMonth;
-        int remainingCells = (totalCells % 7 == 0) ? 0 : 7 - (totalCells % 7);
-        for (int i = 1; i <= remainingCells; i++) {
+        // next-month fillers to reach 42 cells total
+        int filled = startDayOfWeek + daysInMonth;
+        int remaining = 42 - filled;
+        for (int i = 1; i <= remaining; i++) {
             JButton dayBtn = new JButton(String.valueOf(i));
             dayBtn.setFocusPainted(false);
             dayBtn.setFont(new Font("SansSerif", Font.PLAIN, 10));

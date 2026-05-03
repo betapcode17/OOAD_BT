@@ -39,6 +39,8 @@ public class AddAppointmentUI extends JDialog {
     private final javax.swing.JTextField reminderField;
     private final JTextField participantIdsField;
     private final JButton saveButton;
+    private final JLabel errorBox;
+    private final JLabel timeErrorLabel;
     private boolean isFormValid = false;
     private boolean titleTouched = false;
     private boolean startTouched = false;
@@ -58,6 +60,14 @@ public class AddAppointmentUI extends JDialog {
         this.reminderField = new javax.swing.JTextField("15");
         this.participantIdsField = new JTextField("1");
         this.saveButton = new JButton("💾 Save");
+        this.errorBox = new JLabel();
+        this.errorBox.setForeground(new Color(150, 10, 10));
+        this.errorBox.setFont(new Font("SansSerif", Font.PLAIN, 12));
+        this.errorBox.setVisible(false);
+        this.timeErrorLabel = new JLabel();
+        this.timeErrorLabel.setForeground(new Color(150, 10, 10));
+        this.timeErrorLabel.setFont(new Font("SansSerif", Font.PLAIN, 12));
+        this.timeErrorLabel.setVisible(false);
 
         initializeUi();
         setupValidation();
@@ -119,6 +129,13 @@ public class AddAppointmentUI extends JDialog {
 
         int row = 0;
 
+        // Error box (spans full width) - placed above Title
+        GridBagConstraints ebc = (GridBagConstraints) fieldGbc.clone();
+        ebc.gridy = row;
+        ebc.insets = new Insets(0, 0, 12, 0);
+        card.add(errorBox, ebc);
+        row += 2;
+
         // Title
         row = addFormRow(card, labelGbc, fieldGbc, row, "Title *", createStyledField(titleField, 300, 40));
 
@@ -128,8 +145,12 @@ public class AddAppointmentUI extends JDialog {
         // Start Time
         row = addFormRow(card, labelGbc, fieldGbc, row, "Start DateTime *", startTimeField);
 
-        // End Time
-        row = addFormRow(card, labelGbc, fieldGbc, row, "End DateTime *", endTimeField);
+        // End Time (with inline time error under the field)
+        JPanel endFieldPanel = new JPanel(new BorderLayout());
+        endFieldPanel.setOpaque(false);
+        endFieldPanel.add(endTimeField, BorderLayout.NORTH);
+        endFieldPanel.add(timeErrorLabel, BorderLayout.SOUTH);
+        row = addFormRow(card, labelGbc, fieldGbc, row, "End DateTime *", endFieldPanel);
 
         // Reminder
         JPanel reminderPanel = new JPanel();
@@ -310,6 +331,32 @@ public class AddAppointmentUI extends JDialog {
         if (!timeOrderValid && endValid) {
             endTimeField.setInvalid(true);
         }
+
+        // Build and show specific validation messages above the title
+        com.calendar.model.dto.AppointmentDTO dto = getAppointmentDTO();
+        com.calendar.util.Validator.ValidationResult vr = com.calendar.util.Validator.validateAppointmentDTO(dto);
+        if (!vr.isValid()) {
+            StringBuilder html = new StringBuilder("<html><ul style='margin:0;padding-left:18px;color:#8b0000;'>");
+            for (String msg : vr.getErrors()) {
+                html.append("<li>").append(msg).append("</li>");
+            }
+            html.append("</ul></html>");
+            errorBox.setText(html.toString());
+            errorBox.setVisible(true);
+        } else {
+            errorBox.setText("");
+            errorBox.setVisible(false);
+        }
+
+        // Inline time error under the end field
+        if (!timeOrderValid && startValid && endValid) {
+            timeErrorLabel.setText("Start time must be before end time.");
+            timeErrorLabel.setVisible(true);
+            endTimeField.setInvalid(true);
+        } else {
+            timeErrorLabel.setText("");
+            timeErrorLabel.setVisible(false);
+        }
     }
 
     public AppointmentDTO getAppointmentDTO() {
@@ -321,6 +368,20 @@ public class AddAppointmentUI extends JDialog {
         dto.setReminderMinutes(reminderField.getText());
         dto.setParticipantIds(participantIdsField.getText());
         return dto;
+    }
+
+    public void showValidationMessages(java.util.List<String> messages) {
+        if (messages == null || messages.isEmpty()) {
+            errorBox.setVisible(false);
+            return;
+        }
+        StringBuilder html = new StringBuilder("<html><ul style='margin:0;padding-left:18px;color:#8b0000;'>");
+        for (String m : messages) {
+            html.append("<li>").append(m).append("</li>");
+        }
+        html.append("</ul></html>");
+        errorBox.setText(html.toString());
+        errorBox.setVisible(true);
     }
 
     public void setStartDateTime(LocalDateTime dateTime) {
@@ -349,6 +410,8 @@ public class AddAppointmentUI extends JDialog {
     }
 
     public void showError(String text) {
-        JOptionPane.showMessageDialog(this, text, "Validation Error", JOptionPane.WARNING_MESSAGE);
+        // Show error inline in the error box
+        errorBox.setText("<html><div style='color:#8b0000;'>" + text + "</div></html>");
+        errorBox.setVisible(true);
     }
 }
